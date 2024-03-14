@@ -33,6 +33,8 @@ namespace SigmaProConnectDeDuplication.Data
         public virtual DbSet<Person> Persons { get; set; }
 
         public virtual DbSet<State> States { get; set; }
+        public virtual DbSet<PatientDuplicateRecord> PatientDuplicateRecord { get; set; }
+        public virtual DbSet<PatientNewRecord> PatientNewRecord { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
             => optionsBuilder.UseNpgsql("Host=sigmaprodb.postgres.database.azure.com,5432;Database=sigmapro_iis;Username=sigmaprodb_user;Password=Rules@23$$11;TrustServerCertificate=False");
@@ -483,8 +485,107 @@ namespace SigmaProConnectDeDuplication.Data
                     .HasForeignKey(d => d.CountryId)
                     .HasConstraintName("fk_country_id");
             });
+            modelBuilder.Entity<PatientDuplicateRecord>(entity =>
+            {
+                entity.HasKey(e => e.Id).HasName("patient_duplicate_record_pkey");
 
-          
+                entity.ToTable("patient_duplicate_record");
+
+                entity.Property(e => e.Id)
+                    .HasDefaultValueSql("gen_random_uuid()")
+                    .HasColumnName("id");
+                entity.Property(e => e.BirthOrder)
+                    .HasColumnType("character varying")
+                    .HasColumnName("birth_order");
+                entity.Property(e => e.BirthStateId).HasColumnName("birth_state_id");
+                entity.Property(e => e.CreatedBy)
+                    .HasColumnType("character varying")
+                    .HasColumnName("created_by");
+                entity.Property(e => e.CreatedDate).HasColumnName("created_date");
+                entity.Property(e => e.DateOfBirth)
+                    .HasColumnType("character varying")
+                    .HasColumnName("date_of_birth");
+                entity.Property(e => e.DuplicatePersonId).HasColumnName("duplicate_person_id");
+                entity.Property(e => e.FirstName)
+                    .HasColumnType("character varying")
+                    .HasColumnName("first_name");
+                entity.Property(e => e.Gender)
+                    .HasColumnType("character varying")
+                    .HasColumnName("gender");
+                entity.Property(e => e.LastName)
+                    .HasColumnType("character varying")
+                    .HasColumnName("last_name");
+                entity.Property(e => e.MiddleName)
+                    .HasColumnType("character varying")
+                    .HasColumnName("middle_name");
+                entity.Property(e => e.MotherFirstName)
+                    .HasColumnType("character varying")
+                    .HasColumnName("mother_first_name");
+                entity.Property(e => e.MotherLastName)
+                    .HasColumnType("character varying")
+                    .HasColumnName("mother_last_name");
+                entity.Property(e => e.MotherMaidenLastName)
+                    .HasColumnType("character varying")
+                    .HasColumnName("mother_maiden_last_name");
+                entity.Property(e => e.PersonType)
+                    .HasColumnType("character varying")
+                    .HasColumnName("person_type");
+                entity.Property(e => e.UpdatedBy)
+                    .HasColumnType("character varying")
+                    .HasColumnName("updated_by");
+                entity.Property(e => e.UpdatedDate).HasColumnName("updated_date");
+            });
+            modelBuilder.Entity<PatientNewRecord>(entity =>
+            {
+                entity.HasKey(e => e.Id).HasName("patient_new_record_pkey");
+
+                entity.ToTable("patient_new_record");
+
+                entity.Property(e => e.Id)
+                    .HasDefaultValueSql("gen_random_uuid()")
+                    .HasColumnName("id");
+                entity.Property(e => e.BirthOrder)
+                    .HasColumnType("character varying")
+                    .HasColumnName("birth_order");
+                entity.Property(e => e.BirthStateId).HasColumnName("birth_state_id");
+                entity.Property(e => e.CreatedBy)
+                    .HasColumnType("character varying")
+                    .HasColumnName("created_by");
+                entity.Property(e => e.CreatedDate).HasColumnName("created_date");
+                entity.Property(e => e.DateOfBirth)
+                    .HasColumnType("character varying")
+                    .HasColumnName("date_of_birth");
+                
+                entity.Property(e => e.FirstName)
+                    .HasColumnType("character varying")
+                    .HasColumnName("first_name");
+                entity.Property(e => e.Gender)
+                    .HasColumnType("character varying")
+                    .HasColumnName("gender");
+                entity.Property(e => e.LastName)
+                    .HasColumnType("character varying")
+                    .HasColumnName("last_name");
+                entity.Property(e => e.MiddleName)
+                    .HasColumnType("character varying")
+                    .HasColumnName("middle_name");
+                entity.Property(e => e.MotherFirstName)
+                    .HasColumnType("character varying")
+                    .HasColumnName("mother_first_name");
+                entity.Property(e => e.MotherLastName)
+                    .HasColumnType("character varying")
+                    .HasColumnName("mother_last_name");
+                entity.Property(e => e.MotherMaidenLastName)
+                    .HasColumnType("character varying")
+                    .HasColumnName("mother_maiden_last_name");
+                entity.Property(e => e.PersonType)
+                    .HasColumnType("character varying")
+                    .HasColumnName("person_type");
+                entity.Property(e => e.UpdatedBy)
+                    .HasColumnType("character varying")
+                    .HasColumnName("updated_by");
+                entity.Property(e => e.UpdatedDate).HasColumnName("updated_date");
+            });
+
             OnModelCreatingPartial(modelBuilder);
         }
 

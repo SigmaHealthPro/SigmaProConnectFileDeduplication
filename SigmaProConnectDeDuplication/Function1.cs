@@ -6,11 +6,30 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using SigmaProConnectDeDuplication.Data;
 using SigmaProConnectDeDuplication;
+using FuzzySharp;
+using Google.Protobuf.Compiler;
 
+public class PatientData
+{
+    public Guid? Id { get; set; }
+    public string? Name { get; set; }
+    public string? Email { get; set; }
+    public string? DOB { get; set; }
+    public string? MothersName { get; set; }
+}
+public class PersonData
+{
+    public Guid? Id { get; set; }
+    public string? Name { get; set; }
+    public string? Email { get; set; }
+    public string? DOB { get; set; }
+    public string? MothersName { get; set; }
+}
 public class Function1
 {
     private readonly ILogger<Function1> _logger;
     private readonly string _connectionString;
+
 
     public Function1(ILoggerFactory loggerFactory)
     {
@@ -19,7 +38,7 @@ public class Function1
     }
 
     [Function("Function1")]
-    public async Task Run([TimerTrigger("0 */5 * * * *")] TimerInfo myTimer)
+    public async Task Run([TimerTrigger("0 */1 * * * *")] TimerInfo myTimer)
     {
         _logger.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
 
@@ -27,28 +46,80 @@ public class Function1
         {
             using (var context = CreateDbContext())
             {
-                IEnumerable<patient_stage> patients = await context.patient_stage.ToListAsync();
-                PersonDeduplicationRule rule = new PersonDeduplicationRule();
-                foreach (var patient in patients)
+                // Retrieve patient_stage data asynchronously
+                var patient_StageList = await context.patient_stage.ToListAsync();
+
+                List<PatientData> patientData = patient_StageList.Select(p => new PatientData
                 {
-                    if (IsDuplicatePatient(patient, context, rule))
+                    Id = p.Id,
+                    Name = p.PatientName,
+                    DOB = p.CreatedDate.ToString()
+                    //Email = p.Email,
+                    //MothersName = p.MothersName
+                }).ToList();
+
+                var personList = await context.Persons.ToListAsync();
+
+                List<PersonData> personData = personList.Select(p => new PersonData
+                {
+                    Id = p.Id,
+                    Name = p.FirstName,
+                    DOB = p.DateOfBirth,
+                    //Email = p.Email,
+                    MothersName = p.MotherFirstName + p.MotherLastName
+                }).ToList();
+
+                foreach (var patient in patientData)
+                {
+                    var patientComposite = CreateCompositeString(patient);
+                    var bestMatch = Process.ExtractOne(patientComposite, personData.Select(p => CreateCompositeString(p)));
+
+                    // Console.WriteLine($"Best match for '{patientComposite}' is '{bestMatch.Index}' with a score of {bestMatch.Score}");
+
+                    if (bestMatch.Score > 80)
                     {
-                        var existingPatient = await context.Patients.FindAsync(patient.PatientId);
-                        if (existingPatient != null)
+                        var matchedPerson = personData[bestMatch.Index];
+                        //Add Patient to Duplicate
+
+                        var duplicateRecord = new PatientDuplicateRecord()
                         {
-                            existingPatient.PersonId = patient.Id;
-                        }
+                            DuplicatePersonId = matchedPerson.Id,
+                            FirstName = patient.Name
+                        };
+                        var result = context.Add(duplicateRecord);
+                        context.SaveChanges();
                     }
-                   
+                    else
+                    {
+                        var newPatientData = new PatientNewRecord()
+                        {
+
+                            FirstName = patient.Name,
+                            MotherFirstName = patient.MothersName
+                        };
+                        var result = context.Add(newPatientData);
+                        context.SaveChanges();
+                    }
+
                 }
 
-                await context.SaveChangesAsync();
+
             }
         }
         catch (Exception ex)
         {
             _logger.LogError($"Error during deduplication process: {ex.Message}");
         }
+    }
+
+    private string CreateCompositeString(PatientData patient)
+    {
+        return $"{patient.Name} {patient.DOB}";
+    }
+
+    private string CreateCompositeString(PersonData p)
+    {
+        return $"{p.Name} {p.DOB}";
     }
 
     private SigmaproConnectContext CreateDbContext()
@@ -58,47 +129,9 @@ public class Function1
         return new SigmaproConnectContext(optionsBuilder.Options);
     }
 
-    private bool IsDuplicatePatient(patient_stage patient, SigmaproConnectContext context, PersonDeduplicationRule rule)
-    {
     
 
-        var existingPatients = context.Persons
-            .Where(person =>
-                (string.IsNullOrEmpty(rule.FirstName) || person.FirstName == rule.FirstName) &&
-                (string.IsNullOrEmpty(rule.LastName) || person.LastName == rule.LastName) &&
-                (string.IsNullOrEmpty(rule.Gender) || person.Gender == rule.Gender) &&
-                (rule.DateOfBirth == default || person.DateOfBirth == rule.DateOfBirth))
-            .Select(person => new Person
-            {
-                
-                FirstName = string.IsNullOrEmpty(rule.FirstName) ? person.FirstName : rule.FirstName,
-                LastName = string.IsNullOrEmpty(rule.LastName) ? person.LastName : rule.LastName,
-                Gender = string.IsNullOrEmpty(rule.Gender) ? person.Gender : rule.Gender,
-                DateOfBirth = rule.DateOfBirth == default ? person.DateOfBirth : rule.DateOfBirth,
-           
-            })
-            .ToList();
 
-        foreach (var existingPatient in existingPatients)
-        {
-            if (ArePatientsSimilar(existingPatient, patient, rule))
-            {
-                return true;
-            }
-        }
 
-        return false;
-    }
-
-    private bool ArePatientsSimilar(Person existingPatient, patient_stage newPatient, PersonDeduplicationRule rule)
-    {
-      
-        bool isFirstNameSimilar = string.IsNullOrEmpty(rule.FirstName) || existingPatient.FirstName == newPatient.PatientName;
-        bool isLastNameSimilar = string.IsNullOrEmpty(rule.LastName) || existingPatient.LastName == newPatient.PatientName;
-        bool isGenderSimilar = string.IsNullOrEmpty(rule.Gender) || existingPatient.Gender == newPatient.PatientName;
-        bool isDateOfBirthSimilar = rule.DateOfBirth == default || existingPatient.DateOfBirth == newPatient.PatientId;
-
-        return  isFirstNameSimilar && isLastNameSimilar && isGenderSimilar && isDateOfBirthSimilar;
-    }
 
 }
